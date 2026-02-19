@@ -1,0 +1,481 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      cloud:
+        description: 'Cloud provider to deploy'
+        required: true
+        type: choice
+        options:
+          - all
+          - aws
+          - azure
+          - gcp
+
+env:
+  TF_VERSION: '1.5.0'
+  PYTHON_VERSION: '3.9'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-Deployment Checks
+    runs-on: ubuntu-latest
+    
+    outputs:
+      deploy_aws: ${{ steps.check.outputs.deploy_aws }}
+      deploy_azure: ${{ steps.check.outputs.deploy_azure }}
+      deploy_gcp: ${{ steps.check.outputs.deploy_gcp }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Determine deployment targets
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.cloud }}" == "all" ] || [ "${{ github.event.inputs.cloud }}" == "" ]; then
+            echo "deploy_aws=true" >> $GITHUB_OUTPUT
+            echo "deploy_azure=true" >> $GITHUB_OUTPUT
+            echo "deploy_gcp=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.cloud }}" == "aws" ]; then
+            echo "deploy_aws=true" >> $GITHUB_OUTPUT
+            echo "deploy_azure=false" >> $GITHUB_OUTPUT
+            echo "deploy_gcp=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.cloud }}" == "azure" ]; then
+            echo "deploy_aws=false" >> $GITHUB_OUTPUT
+            echo "deploy_azure=true" >> $GITHUB_OUTPUT
+            echo "deploy_gcp=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.cloud }}" == "gcp" ]; then
+            echo "deploy_aws=false" >> $GITHUB_OUTPUT
+            echo "deploy_azure=false" >> $GITHUB_OUTPUT
+            echo "deploy_gcp=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r infrastructure/requirements.txt
+      
+      - name: Run pre-deployment validation
+        run: |
+          cd infrastructure
+          python tests/verify_deployment.py --pre-check
+        continue-on-error: true
+
+  deploy-aws:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: needs.pre-deployment-checks.outputs.deploy_aws == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}-aws
+      url: https://aws-console.aws.amazon.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Terraform Init - AWS
+        run: |
+          cd infrastructure/terraform/aws
+          terraform init
+      
+      - name: Terraform Plan - AWS
+        id: plan
+        run: |
+          cd infrastructure/terraform/aws
+          terraform plan -out=aws.tfplan
+      
+      - name: Terraform Apply - AWS
+        id: apply
+        run: |
+          cd infrastructure/terraform/aws
+          terraform apply -auto-approve aws.tfplan
+      
+      - name: Save Terraform Outputs
+        run: |
+          cd infrastructure/terraform/aws
+          terraform output -json > $GITHUB_WORKSPACE/aws-outputs.json
+      
+      - name: Upload AWS outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: aws-outputs
+          path: aws-outputs.json
+      
+      - name: Run smoke tests - AWS
+        run: |
+          cd infrastructure
+          python tests/verify_deployment.py --cloud aws --smoke-test
+        continue-on-error: true
+
+  deploy-azure:
+    name: Deploy to Azure
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: needs.pre-deployment-checks.outputs.deploy_azure == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}-azure
+      url: https://portal.azure.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Terraform Init - Azure
+        run: |
+          cd infrastructure/terraform/azure
+          terraform init
+      
+      - name: Terraform Plan - Azure
+        id: plan
+        run: |
+          cd infrastructure/terraform/azure
+          terraform plan -out=azure.tfplan
+      
+      - name: Terraform Apply - Azure
+        id: apply
+        run: |
+          cd infrastructure/terraform/azure
+          terraform apply -auto-approve azure.tfplan
+      
+      - name: Save Terraform Outputs
+        run: |
+          cd infrastructure/terraform/azure
+          terraform output -json > $GITHUB_WORKSPACE/azure-outputs.json
+      
+      - name: Upload Azure outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: azure-outputs
+          path: azure-outputs.json
+      
+      - name: Run smoke tests - Azure
+        run: |
+          cd infrastructure
+          python tests/verify_deployment.py --cloud azure --smoke-test
+        continue-on-error: true
+
+  deploy-gcp:
+    name: Deploy to GCP
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: needs.pre-deployment-checks.outputs.deploy_gcp == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}-gcp
+      url: https://console.cloud.google.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Terraform Init - GCP
+        run: |
+          cd infrastructure/terraform/gcp
+          terraform init
+      
+      - name: Terraform Plan - GCP
+        id: plan
+        run: |
+          cd infrastructure/terraform/gcp
+          terraform plan -out=gcp.tfplan
+      
+      - name: Terraform Apply - GCP
+        id: apply
+        run: |
+          cd infrastructure/terraform/gcp
+          terraform apply -auto-approve gcp.tfplan
+      
+      - name: Save Terraform Outputs
+        run: |
+          cd infrastructure/terraform/gcp
+          terraform output -json > $GITHUB_WORKSPACE/gcp-outputs.json
+      
+      - name: Upload GCP outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: gcp-outputs
+          path: gcp-outputs.json
+      
+      - name: Run smoke tests - GCP
+        run: |
+          cd infrastructure
+          python tests/verify_deployment.py --cloud gcp --smoke-test
+        continue-on-error: true
+
+  configure-dns:
+    name: Configure DNS (Route 53)
+    runs-on: ubuntu-latest
+    needs: [deploy-aws, deploy-azure, deploy-gcp]
+    if: always() && (needs.deploy-aws.result == 'success' || needs.deploy-azure.result == 'success' || needs.deploy-gcp.result == 'success')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download deployment outputs
+        uses: actions/download-artifact@v3
+        with:
+          path: outputs/
+      
+      - name: Terraform Init - Route 53
+        run: |
+          cd infrastructure/terraform/route53
+          terraform init
+      
+      - name: Terraform Apply - Route 53
+        run: |
+          cd infrastructure/terraform/route53
+          terraform apply -auto-approve
+      
+      - name: Verify DNS configuration
+        run: |
+          cd infrastructure
+          python scripts/dns_failover.py --verify
+
+  post-deployment-tests:
+    name: Post-Deployment Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-aws, deploy-azure, deploy-gcp, configure-dns]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r infrastructure/requirements.txt
+      
+      - name: Configure cloud credentials
+        run: |
+          # AWS
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region ${{ env.AWS_REGION }}
+          
+          # Azure
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > azure-creds.json
+          az login --service-principal -u $(jq -r .clientId azure-creds.json) -p $(jq -r .clientSecret azure-creds.json) --tenant $(jq -r .tenantId azure-creds.json)
+          
+          # GCP
+          echo '${{ secrets.GCP_CREDENTIALS }}' > gcp-creds.json
+          gcloud auth activate-service-account --key-file=gcp-creds.json
+      
+      - name: Run deployment verification
+        run: |
+          cd infrastructure
+          python tests/verify_deployment.py --full-check
+      
+      - name: Run health checks
+        run: |
+          cd infrastructure
+          python scripts/health_monitor.py --check-all
+      
+      - name: Verify replication
+        run: |
+          cd infrastructure
+          python scripts/setup_replication.py --verify
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: post-deployment-test-results
+          path: infrastructure/test-results/
+
+  deployment-notification:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-aws, deploy-azure, deploy-gcp, configure-dns, post-deployment-tests]
+    if: always()
+    
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [ "${{ needs.deploy-aws.result }}" == "success" ] && \
+             [ "${{ needs.deploy-azure.result }}" == "success" ] && \
+             [ "${{ needs.deploy-gcp.result }}" == "success" ] && \
+             [ "${{ needs.configure-dns.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Multi-Cloud DR Deployment*\n\nStatus: ${{ steps.status.outputs.status }}\nEnvironment: ${{ github.event.inputs.environment || 'production' }}\nTriggered by: @${{ github.actor }}\n\n*Results:*\n• AWS: ${{ needs.deploy-aws.result }}\n• Azure: ${{ needs.deploy-azure.result }}\n• GCP: ${{ needs.deploy-gcp.result }}\n• DNS: ${{ needs.configure-dns.result }}\n• Tests: ${{ needs.post-deployment-tests.result }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+      
+      - name: Create GitHub deployment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ github.event.inputs.environment || 'production' }}',
+              auto_merge: false,
+              required_contexts: []
+            });
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: '${{ steps.status.outputs.status }}',
+              description: 'Multi-cloud DR deployment',
+              environment_url: 'https://your-domain.com'
+            });
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-aws, deploy-azure, deploy-gcp, post-deployment-tests]
+    if: failure() && github.event.inputs.environment == 'production'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.before }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Rollback AWS
+        if: needs.deploy-aws.result == 'failure'
+        run: |
+          cd infrastructure/terraform/aws
+          terraform init
+          terraform apply -auto-approve
+        continue-on-error: true
+      
+      - name: Rollback Azure
+        if: needs.deploy-azure.result == 'failure'
+        run: |
+          cd infrastructure/terraform/azure
+          terraform init
+          terraform apply -auto-approve
+        continue-on-error: true
+      
+      - name: Rollback GCP
+        if: needs.deploy-gcp.result == 'failure'
+        run: |
+          cd infrastructure/terraform/gcp
+          terraform init
+          terraform apply -auto-approve
+        continue-on-error: true
+      
+      - name: Notify rollback
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "⚠️ Deployment failed - Rollback initiated",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Rollback Initiated*\n\nDeployment to ${{ github.event.inputs.environment }} failed. Rolling back to previous version.\n\nTriggered by: @${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

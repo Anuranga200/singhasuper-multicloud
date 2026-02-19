@@ -1,0 +1,28 @@
+{
+  "aws_region": "us-east-1",
+  "azure_subscription_id": "your-azure-subscription-id",
+  "gcp_billing_account": "your-gcp-billing-account-id",
+  "gcp_project_id": "your-gcp-project-id",
+  "budgets": {
+    "aws": 76,
+    "azure": 70,
+    "gcp": 60
+  },
+  "estimated_costs": {
+    "aws": 76,
+    "azure": 70,
+    "gcp": 60
+  },
+  "alert_thresholds": {
+    "warning": 0.8,
+    "critical": 1.0
+  },
+  "sns_topic_arn": "arn:aws:sns:us-east-1:123456789012:dr-system-cost-alerts",
+  "monitoring_interval_hours": 24,
+  "report_schedule": "monthly",
+  "cost_optimization": {
+    "identify_unused_resources": true,
+    "suggest_reserved_instances": true,
+    "suggest_right_sizing": true
+  }
+}

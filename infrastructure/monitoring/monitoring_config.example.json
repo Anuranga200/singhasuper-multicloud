@@ -1,0 +1,44 @@
+{
+  "aws_region": "us-east-1",
+  "aws_db_instance_id": "singha-loyalty-db-primary",
+  "sns_topic_arn": "arn:aws:sns:us-east-1:123456789012:multicloud-dr-alerts",
+  
+  "azure_subscription_id": "your-azure-subscription-id",
+  "azure_resource_group": "singha-loyalty-rg",
+  "azure_server_name": "singha-loyalty-mysql-azure",
+  "azure_location": "eastus",
+  "azure_action_group_id": "/subscriptions/your-subscription-id/resourceGroups/singha-loyalty-rg/providers/microsoft.insights/actionGroups/multicloud-dr-alerts",
+  
+  "gcp_project_id": "your-gcp-project-id",
+  "gcp_instance_name": "singha-loyalty-mysql-gcp",
+  "gcp_credentials_file": "/path/to/service-account-key.json",
+  "gcp_notification_channel": "projects/your-project-id/notificationChannels/1234567890",
+  
+  "monitoring": {
+    "collection_interval_seconds": 60,
+    "retention_days": 90,
+    "dashboard_refresh_seconds": 300
+  },
+  
+  "thresholds": {
+    "cpu_warning_percent": 80,
+    "cpu_critical_percent": 95,
+    "memory_warning_percent": 85,
+    "memory_critical_percent": 95,
+    "replication_lag_warning_seconds": 3,
+    "replication_lag_critical_seconds": 5,
+    "storage_warning_gb": 10,
+    "storage_critical_gb": 5,
+    "response_time_warning_ms": 1000,
+    "response_time_critical_ms": 3000,
+    "error_rate_warning_percent": 5,
+    "error_rate_critical_percent": 10
+  },
+  
+  "alerts": {
+    "email": ["admin@example.com", "devops@example.com"],
+    "sms": ["+1234567890"],
+    "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+    "pagerduty_key": "your-pagerduty-integration-key"
+  }
+}

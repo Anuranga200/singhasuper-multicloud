@@ -1,0 +1,322 @@
+{
+  "aws_security_groups": {
+    "alb_security_group": {
+      "description": "Security group for Application Load Balancer",
+      "ingress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 443,
+          "source": "0.0.0.0/0",
+          "description": "HTTPS from internet"
+        },
+        {
+          "protocol": "tcp",
+          "port": 80,
+          "source": "0.0.0.0/0",
+          "description": "HTTP from internet (redirect to HTTPS)"
+        }
+      ],
+      "egress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 3000,
+          "destination": "ec2_security_group",
+          "description": "To application instances"
+        }
+      ]
+    },
+    "ec2_security_group": {
+      "description": "Security group for EC2 application instances",
+      "ingress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 3000,
+          "source": "alb_security_group",
+          "description": "From load balancer only"
+        },
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "bastion_security_group",
+          "description": "SSH from bastion only"
+        }
+      ],
+      "egress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 3306,
+          "destination": "rds_security_group",
+          "description": "To RDS MySQL"
+        },
+        {
+          "protocol": "tcp",
+          "port": 443,
+          "destination": "0.0.0.0/0",
+          "description": "HTTPS to internet (for API calls)"
+        }
+      ]
+    },
+    "rds_security_group": {
+      "description": "Security group for RDS MySQL database",
+      "ingress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 3306,
+          "source": "ec2_security_group",
+          "description": "From application instances only"
+        },
+        {
+          "protocol": "tcp",
+          "port": 3306,
+          "source": "azure_vpn_cidr",
+          "description": "From Azure for replication"
+        },
+        {
+          "protocol": "tcp",
+          "port": 3306,
+          "source": "gcp_vpn_cidr",
+          "description": "From GCP for replication"
+        }
+      ],
+      "egress_rules": []
+    },
+    "bastion_security_group": {
+      "description": "Security group for bastion host (optional)",
+      "ingress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "source": "admin_ip_range",
+          "description": "SSH from admin IPs only"
+        }
+      ],
+      "egress_rules": [
+        {
+          "protocol": "tcp",
+          "port": 22,
+          "destination": "ec2_security_group",
+          "description": "SSH to application instances"
+        }
+      ]
+    }
+  },
+  "azure_network_security_groups": {
+    "lb_nsg": {
+      "description": "NSG for Azure Load Balancer",
+      "inbound_rules": [
+        {
+          "priority": 100,
+          "protocol": "Tcp",
+          "port": 443,
+          "source": "Internet",
+          "description": "HTTPS from internet"
+        },
+        {
+          "priority": 110,
+          "protocol": "Tcp",
+          "port": 80,
+          "source": "Internet",
+          "description": "HTTP from internet"
+        }
+      ],
+      "outbound_rules": [
+        {
+          "priority": 100,
+          "protocol": "Tcp",
+          "port": 3000,
+          "destination": "vm_subnet",
+          "description": "To application VMs"
+        }
+      ]
+    },
+    "vm_nsg": {
+      "description": "NSG for Azure Virtual Machines",
+      "inbound_rules": [
+        {
+          "priority": 100,
+          "protocol": "Tcp",
+          "port": 3000,
+          "source": "lb_subnet",
+          "description": "From load balancer only"
+        },
+        {
+          "priority": 110,
+          "protocol": "Tcp",
+          "port": 22,
+          "source": "bastion_subnet",
+          "description": "SSH from bastion only"
+        }
+      ],
+      "outbound_rules": [
+        {
+          "priority": 100,
+          "protocol": "Tcp",
+          "port": 3306,
+          "destination": "database_subnet",
+          "description": "To MySQL database"
+        },
+        {
+          "priority": 110,
+          "protocol": "Tcp",
+          "port": 443,
+          "destination": "Internet",
+          "description": "HTTPS to internet"
+        }
+      ]
+    },
+    "database_nsg": {
+      "description": "NSG for Azure Database for MySQL",
+      "inbound_rules": [
+        {
+          "priority": 100,
+          "protocol": "Tcp",
+          "port": 3306,
+          "source": "vm_subnet",
+          "description": "From application VMs only"
+        },
+        {
+          "priority": 110,
+          "protocol": "Tcp",
+          "port": 3306,
+          "source": "aws_vpn_cidr",
+          "description": "From AWS for replication"
+        }
+      ],
+      "outbound_rules": []
+    }
+  },
+  "gcp_firewall_rules": {
+    "allow_lb_ingress": {
+      "description": "Allow HTTPS/HTTP to load balancer",
+      "direction": "INGRESS",
+      "priority": 1000,
+      "source_ranges": ["0.0.0.0/0"],
+      "target_tags": ["load-balancer"],
+      "allowed": [
+        {"protocol": "tcp", "ports": ["80", "443"]}
+      ]
+    },
+    "allow_lb_to_instances": {
+      "description": "Allow load balancer to application instances",
+      "direction": "INGRESS",
+      "priority": 1000,
+      "source_tags": ["load-balancer"],
+      "target_tags": ["application"],
+      "allowed": [
+        {"protocol": "tcp", "ports": ["3000"]}
+      ]
+    },
+    "allow_instances_to_db": {
+      "description": "Allow application instances to Cloud SQL",
+      "direction": "EGRESS",
+      "priority": 1000,
+      "destination_ranges": ["cloudsql_ip_range"],
+      "target_tags": ["application"],
+      "allowed": [
+        {"protocol": "tcp", "ports": ["3306"]}
+      ]
+    },
+    "allow_db_replication": {
+      "description": "Allow database replication from AWS",
+      "direction": "INGRESS",
+      "priority": 1000,
+      "source_ranges": ["aws_vpn_cidr"],
+      "target_tags": ["database"],
+      "allowed": [
+        {"protocol": "tcp", "ports": ["3306"]}
+      ]
+    },
+    "allow_ssh_from_iap": {
+      "description": "Allow SSH from Identity-Aware Proxy",
+      "direction": "INGRESS",
+      "priority": 1000,
+      "source_ranges": ["35.235.240.0/20"],
+      "target_tags": ["application"],
+      "allowed": [
+        {"protocol": "tcp", "ports": ["22"]}
+      ]
+    },
+    "deny_all_ingress": {
+      "description": "Deny all other ingress traffic",
+      "direction": "INGRESS",
+      "priority": 65534,
+      "source_ranges": ["0.0.0.0/0"],
+      "denied": [
+        {"protocol": "all"}
+      ]
+    }
+  },
+  "network_segmentation": {
+    "aws_subnets": {
+      "public_subnets": {
+        "purpose": "Load balancers and NAT gateways",
+        "cidr_blocks": ["10.0.1.0/24", "10.0.2.0/24"],
+        "internet_access": "direct"
+      },
+      "private_app_subnets": {
+        "purpose": "Application EC2 instances",
+        "cidr_blocks": ["10.0.10.0/24", "10.0.11.0/24"],
+        "internet_access": "via_nat"
+      },
+      "private_db_subnets": {
+        "purpose": "RDS MySQL database",
+        "cidr_blocks": ["10.0.20.0/24", "10.0.21.0/24"],
+        "internet_access": "none"
+      }
+    },
+    "azure_subnets": {
+      "public_subnet": {
+        "purpose": "Load balancer",
+        "cidr_block": "10.1.1.0/24",
+        "internet_access": "direct"
+      },
+      "private_app_subnet": {
+        "purpose": "Application VMs",
+        "cidr_block": "10.1.10.0/24",
+        "internet_access": "via_nat"
+      },
+      "private_db_subnet": {
+        "purpose": "Azure Database for MySQL",
+        "cidr_block": "10.1.20.0/24",
+        "internet_access": "none"
+      }
+    },
+    "gcp_subnets": {
+      "public_subnet": {
+        "purpose": "Load balancer",
+        "cidr_block": "10.2.1.0/24",
+        "internet_access": "direct"
+      },
+      "private_app_subnet": {
+        "purpose": "Compute Engine instances",
+        "cidr_block": "10.2.10.0/24",
+        "internet_access": "via_nat"
+      },
+      "private_db_subnet": {
+        "purpose": "Cloud SQL",
+        "cidr_block": "10.2.20.0/24",
+        "internet_access": "none"
+      }
+    }
+  },
+  "security_best_practices": {
+    "principles": [
+      "Default deny all traffic",
+      "Explicitly allow only required traffic",
+      "Use security groups/NSGs for stateful filtering",
+      "Implement network segmentation between tiers",
+      "No direct internet access to private subnets",
+      "Use VPN or private connectivity for cross-cloud traffic",
+      "Regularly audit and review security rules",
+      "Remove unused rules immediately"
+    ],
+    "monitoring": [
+      "Enable VPC Flow Logs (AWS)",
+      "Enable NSG Flow Logs (Azure)",
+      "Enable VPC Flow Logs (GCP)",
+      "Alert on security group changes",
+      "Monitor for unauthorized access attempts",
+      "Track traffic patterns for anomalies"
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+# Example Terraform Variables File
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to version control
+
+# Project configuration
+project_name = "singha-loyalty"
+environment  = "prod"
+
+# Application configuration
+docker_image = "your-registry/singha-loyalty-app:latest"
+
+# Database configuration
+db_name     = "singha_loyalty"
+db_username = "admin"
+db_password = "CHANGE_ME_STRONG_PASSWORD_HERE"
+
+# JWT secrets
+jwt_secret         = "CHANGE_ME_RANDOM_SECRET_KEY_HERE"
+jwt_refresh_secret = "CHANGE_ME_RANDOM_REFRESH_SECRET_HERE"
+
+# AWS configuration
+aws_region            = "us-east-1"
+aws_instance_type     = "t3.micro"
+aws_db_instance_class = "db.t3.micro"
+
+# Azure configuration
+azure_location = "eastus"
+azure_vm_size  = "Standard_B1s"
+azure_db_sku   = "B_Gen5_1"
+
+# GCP configuration
+gcp_region       = "us-central1"
+gcp_zone         = "us-central1-a"
+gcp_machine_type = "e2-micro"
+gcp_db_tier      = "db-f1-micro"
+
+# Networking
+vpc_cidr_aws   = "10.0.0.0/16"
+vpc_cidr_azure = "10.1.0.0/16"
+vpc_cidr_gcp   = "10.2.0.0/16"
+
+# Monitoring and alerting
+health_check_interval = 30
+alert_email           = "your-email@example.com"
+alert_phone           = "+1234567890"  # E.164 format
+
+# Cost budgets (USD per month)
+monthly_budget_aws   = 100
+monthly_budget_azure = 100
+monthly_budget_gcp   = 100
+
+# Tags
+tags = {
+  Project     = "Singha Loyalty DR"
+  ManagedBy   = "Terraform"
+  Environment = "Production"
+  CostCenter  = "IT"
+  Owner       = "DevOps Team"
+}

@@ -1,0 +1,192 @@
+{
+  "aws_policies": {
+    "ec2_instance_role": {
+      "description": "Minimal permissions for EC2 instances running the application",
+      "permissions": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "rds:DescribeDBInstances",
+        "cloudwatch:PutMetricData",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "s3:GetObject"
+      ],
+      "resources": [
+        "arn:aws:secretsmanager:*:*:secret:dr-system/*",
+        "arn:aws:rds:*:*:db:*",
+        "arn:aws:logs:*:*:log-group:/dr-system/*",
+        "arn:aws:s3:::dr-system-artifacts/*"
+      ]
+    },
+    "failover_orchestrator_role": {
+      "description": "Permissions for failover orchestrator service",
+      "permissions": [
+        "route53:GetHealthCheckStatus",
+        "route53:ChangeResourceRecordSets",
+        "route53:GetChange",
+        "sns:Publish",
+        "cloudwatch:PutMetricData",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "secretsmanager:GetSecretValue",
+        "rds:DescribeDBInstances",
+        "ec2:DescribeInstances"
+      ],
+      "resources": [
+        "arn:aws:route53:::hostedzone/*",
+        "arn:aws:route53:::healthcheck/*",
+        "arn:aws:sns:*:*:dr-system-alerts",
+        "arn:aws:logs:*:*:log-group:/dr-system/*",
+        "arn:aws:secretsmanager:*:*:secret:dr-system/*"
+      ]
+    },
+    "health_monitor_role": {
+      "description": "Permissions for health monitoring service",
+      "permissions": [
+        "route53:GetHealthCheckStatus",
+        "cloudwatch:PutMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "sns:Publish",
+        "rds:DescribeDBInstances"
+      ],
+      "resources": [
+        "arn:aws:route53:::healthcheck/*",
+        "arn:aws:logs:*:*:log-group:/dr-system/*",
+        "arn:aws:sns:*:*:dr-system-alerts"
+      ]
+    },
+    "cost_monitor_role": {
+      "description": "Permissions for cost monitoring service",
+      "permissions": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "budgets:ViewBudget",
+        "cloudwatch:PutMetricData",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "sns:Publish"
+      ],
+      "resources": [
+        "arn:aws:logs:*:*:log-group:/dr-system/*",
+        "arn:aws:sns:*:*:dr-system-alerts"
+      ]
+    }
+  },
+  "azure_policies": {
+    "vm_managed_identity": {
+      "description": "Minimal permissions for Azure VMs running the application",
+      "permissions": [
+        "Microsoft.KeyVault/vaults/secrets/read",
+        "Microsoft.Sql/servers/databases/read",
+        "Microsoft.Insights/metrics/write",
+        "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"
+      ],
+      "scope": "/subscriptions/{subscription-id}/resourceGroups/dr-system"
+    },
+    "failover_orchestrator_identity": {
+      "description": "Permissions for failover orchestrator on Azure",
+      "permissions": [
+        "Microsoft.Network/trafficManagerProfiles/read",
+        "Microsoft.Network/trafficManagerProfiles/write",
+        "Microsoft.KeyVault/vaults/secrets/read",
+        "Microsoft.Sql/servers/databases/read",
+        "Microsoft.Compute/virtualMachines/read",
+        "Microsoft.Insights/metrics/write",
+        "Microsoft.Insights/diagnosticSettings/write"
+      ],
+      "scope": "/subscriptions/{subscription-id}/resourceGroups/dr-system"
+    },
+    "health_monitor_identity": {
+      "description": "Permissions for health monitoring on Azure",
+      "permissions": [
+        "Microsoft.Network/trafficManagerProfiles/read",
+        "Microsoft.Insights/metrics/read",
+        "Microsoft.Insights/metrics/write",
+        "Microsoft.Sql/servers/databases/read",
+        "Microsoft.Compute/virtualMachines/read"
+      ],
+      "scope": "/subscriptions/{subscription-id}/resourceGroups/dr-system"
+    }
+  },
+  "gcp_policies": {
+    "compute_service_account": {
+      "description": "Minimal permissions for GCP Compute Engine instances",
+      "permissions": [
+        "secretmanager.versions.access",
+        "cloudsql.instances.get",
+        "monitoring.timeSeries.create",
+        "logging.logEntries.create",
+        "storage.objects.get"
+      ],
+      "roles": [
+        "roles/secretmanager.secretAccessor",
+        "roles/cloudsql.client",
+        "roles/monitoring.metricWriter",
+        "roles/logging.logWriter"
+      ]
+    },
+    "failover_orchestrator_account": {
+      "description": "Permissions for failover orchestrator on GCP",
+      "permissions": [
+        "dns.changes.create",
+        "dns.changes.get",
+        "dns.managedZones.get",
+        "secretmanager.versions.access",
+        "cloudsql.instances.get",
+        "compute.instances.list",
+        "monitoring.timeSeries.create",
+        "logging.logEntries.create",
+        "pubsub.topics.publish"
+      ],
+      "roles": [
+        "roles/dns.admin",
+        "roles/secretmanager.secretAccessor",
+        "roles/cloudsql.client",
+        "roles/monitoring.metricWriter",
+        "roles/logging.logWriter",
+        "roles/pubsub.publisher"
+      ]
+    },
+    "health_monitor_account": {
+      "description": "Permissions for health monitoring on GCP",
+      "permissions": [
+        "monitoring.timeSeries.list",
+        "monitoring.timeSeries.create",
+        "cloudsql.instances.get",
+        "compute.instances.list",
+        "logging.logEntries.create",
+        "pubsub.topics.publish"
+      ],
+      "roles": [
+        "roles/monitoring.metricWriter",
+        "roles/monitoring.viewer",
+        "roles/cloudsql.client",
+        "roles/logging.logWriter",
+        "roles/pubsub.publisher"
+      ]
+    }
+  },
+  "policy_documentation": {
+    "principles": [
+      "Grant only the minimum permissions required for each component",
+      "Use resource-specific permissions instead of wildcards where possible",
+      "Separate read and write permissions",
+      "Use managed identities/service accounts instead of access keys",
+      "Regularly review and audit permissions",
+      "Remove unused permissions immediately"
+    ],
+    "review_schedule": "Quarterly review of all IAM policies and permissions",
+    "audit_requirements": [
+      "Log all IAM policy changes",
+      "Alert on permission escalation attempts",
+      "Monitor for unused permissions",
+      "Track permission usage patterns"
+    ]
+  }
+}

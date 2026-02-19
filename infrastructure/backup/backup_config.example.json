@@ -1,0 +1,19 @@
+{
+  "aws_region": "us-east-1",
+  "aws_db_instance_id": "singha-loyalty-db-primary",
+  
+  "azure_subscription_id": "your-azure-subscription-id",
+  "azure_resource_group": "singha-loyalty-rg",
+  "azure_server_name": "singha-loyalty-mysql-azure",
+  
+  "gcp_project_id": "your-gcp-project-id",
+  "gcp_instance_name": "singha-loyalty-mysql-gcp",
+  "gcp_credentials_file": "/path/to/service-account-key.json",
+  
+  "backup_retention_days": 30,
+  "point_in_time_recovery_days": 7,
+  "backup_window": "03:00-04:00",
+  
+  "alert_email": "admin@example.com",
+  "alert_sms": "+1234567890"
+}

@@ -1,0 +1,38 @@
+{
+  "aws_region": "us-east-1",
+  "health_checks": {
+    "aws": "health-check-id-aws",
+    "azure": "health-check-id-azure",
+    "gcp": "health-check-id-gcp"
+  },
+  "databases": {
+    "aws": {
+      "host": "aws-rds-endpoint.region.rds.amazonaws.com",
+      "port": 3306,
+      "user": "admin",
+      "password": "stored-in-secrets-manager",
+      "database": "singha_loyalty"
+    },
+    "azure": {
+      "host": "azure-mysql-server.mysql.database.azure.com",
+      "port": 3306,
+      "user": "admin@azure-mysql-server",
+      "password": "stored-in-key-vault",
+      "database": "singha_loyalty"
+    },
+    "gcp": {
+      "host": "gcp-cloudsql-ip",
+      "port": 3306,
+      "user": "admin",
+      "password": "stored-in-secret-manager",
+      "database": "singha_loyalty"
+    }
+  },
+  "endpoints": {
+    "aws": "https://aws-alb-endpoint.region.elb.amazonaws.com",
+    "azure": "https://azure-lb-endpoint.region.cloudapp.azure.com",
+    "gcp": "https://gcp-lb-endpoint.region.run.app"
+  },
+  "sns_topic_arn": "arn:aws:sns:us-east-1:123456789012:dr-system-alerts",
+  "log_dir": "/var/log/dr-system"
+}
